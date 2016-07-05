@@ -1,0 +1,20 @@
+[
+    {
+        "name": "some name ",
+        "size": "size",
+        "price": "price",
+        "brand": "brand",
+        "display": "display",
+        "resolution": "resolution",
+        "weight": "weight",
+        "dimensions": "dimensions",
+        "ASIN": "ASIN",
+        "image": "some url",
+        "reviews": [
+            "review 1",
+            "review 2"
+            
+        ]
+    }
+    
+]

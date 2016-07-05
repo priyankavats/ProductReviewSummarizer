@@ -1,0 +1,302 @@
+<html>
+  <head>
+    <title>ui</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <style type="text/css">
+      body {
+        padding-bottom: 30px;  
+      }
+
+      #answer {
+        overflow: hidden;
+      }
+
+      #positive, 
+      #neutral, 
+      #negative {
+        padding: 10px 60px 0 0;
+        text-transform: capitalize;
+      }
+
+      #show-all {
+        display: none;
+      }
+
+      #positive span {
+        font-size: 18px;
+      }
+      #neutral span {
+        font-size: 18px;
+      }
+      #negative span {
+        font-size: 18px;
+      }
+
+      #positive, .pos  {
+        color: green;
+      }
+      #neutral,  .neu {
+        color: blue;
+      }
+      #negative, .neg  {
+        color: red;
+      }
+
+      .review {
+        padding: 10px 0;
+      }
+
+
+    </style>
+  </head>
+  <body>
+    <br>
+    Product :
+    <select id="product">
+      <option value="">Select a Product</option>
+    </select>
+    <br>
+    <br>
+    <br>
+    <br>
+    <button type="text" id="button"> Submit </button>
+    <br>
+    <br>
+    <div id="specifications"></div>
+    <br>
+    <br>
+    <br>
+    <div id="answer">
+      <div id="positive"></div>
+      <div id="neutral"></div>
+      <div id="negative"></div>
+    </div>
+    <br>
+    <br>
+    <button type="button" id="show-all">Show All Reviews</button>
+    <br>
+    <br>
+    <div id="reviews"></div>
+    <script>
+      var product_list = null;
+      $.ajax({
+        type: "GET",
+        url: "/products",
+        dataType: "json",
+        success: function(data) {
+          product_list = data;
+          $.each(product_list, function(i, obj) {
+            //use obj.id and obj.name here, for example:
+            // alert(obj.name);
+            $('#product').append("<option data-img="+ obj.image +" value="+ obj.id +">" + obj.name + "</option>");
+          });
+          // 
+        }
+      });
+
+      $('#button').click(function(){
+        var product_id = $('#product').val();
+        if (product_id==null || product_id=="" || product_id==undefined) {
+          alert("Please select a product");
+          return false;
+        }
+
+        $.each(product_list, function(i, obj) {
+            if (product_id == obj.id) {
+              $('#specifications').html('');
+              $('#specifications').append('<img width="250" src=' + obj.image + '><br>');
+              $('#specifications').append('Name: ' + obj.name + '<br>');
+              $('#specifications').append('Size: ' + obj.size + '<br>');
+              $('#specifications').append('Price: ' + obj.price + '<br>');
+              $('#specifications').append('Brand: ' + obj.brand + '<br>');
+              $('#specifications').append('Display: ' + obj.display + '<br>');
+              $('#specifications').append('Resolution: ' + obj.resolution + '<br>');
+              $('#specifications').append('Weight: ' + obj.weight + '<br>');
+              $('#specifications').append('Dimensions: ' + obj.dimensions + '<br>');
+              $('#specifications').append('ASIN: ' + obj.ASIN + '<br>');
+
+            }
+        });
+
+        $.ajax({
+          type: "GET",
+          url: "/product_results",
+          data:"id="+ product_id ,
+          success: function(data) {
+
+            $('#positive').html('<span>Pros: <br></span>');
+            $('#neutral').html('<span>Neutral: <br></span>');
+            $('#negative').html('<span>Cons: <br></span>');
+
+            $('#reviews').html('');
+            var count = 1;
+            reviews = data.result_review_phrase
+            phrases_feature_list = {}
+            var pos_str = "";
+            var neg_str = "";
+            var neu_str = "";
+
+            for (var key in reviews) {
+              if (reviews.hasOwnProperty(key)) {
+
+                  var phrases = ""
+                  for (var i = 0; i < reviews[key].phrases.length; i++) {
+                      var score = parseFloat(reviews[key].phrases[i].polarity).toFixed(2);
+                      var scoreClass = "";
+                      if(score > 0) {
+                        scoreClass = "pos";
+                      } else if (score < 0) {
+                        scoreClass = "neg";
+                      } else {
+                        scoreClass = "neu";
+                      }
+                      phrases += "<span class='" + scoreClass + " " + sanitize_phrase(reviews[key].phrases[i].phrase) + "''>"+reviews[key].phrases[i].phrase + " ("  + score + ")</span>, ";
+                      if ( phrases_feature_list[reviews[key].phrases[i].feature] === undefined ) {
+                        phrases_feature_list[reviews[key].phrases[i].feature] = {}
+                      }
+
+                      phrase_obj = phrases_feature_list[reviews[key].phrases[i].feature][reviews[key].phrases[i].phrase]
+
+                      if (phrase_obj === undefined) {
+                        phrases_feature_list[reviews[key].phrases[i].feature][reviews[key].phrases[i].phrase] = {'polarity': score, 'frequency': 1 }
+                      } else {
+                        phrases_feature_list[reviews[key].phrases[i].feature][reviews[key].phrases[i].phrase].frequency = phrases_feature_list[reviews[key].phrases[i].feature][reviews[key].phrases[i].phrase].frequency +1
+                      }
+                      
+                  }
+
+                  $('#reviews').append("<div class='review'>" + count + ") " + "<strong>Review : </strong>" + reviews[key].review + "<br>" + "<div class='opinion'><strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Opinion : </strong>" + phrases + "</div></div>");
+                  count++;
+
+              }
+            }
+
+            feature_polarity = data.final_polarity
+            feature_dictionary = {}
+
+            for (var key in feature_polarity) {
+              if (feature_polarity.hasOwnProperty(key)) {
+
+                var current_feature = feature_polarity[key].feature;
+
+                phrases = phrases_feature_list[current_feature]
+                var highFrequency = 0;
+                for (var pkey in phrases) {
+                  if (phrases[pkey].frequency > highFrequency) {
+                    highFrequency = phrases[pkey].frequency
+                  }
+                }
+
+                highFrequencyList = []
+                for (var pkey in phrases) {
+                  if (phrases[pkey].frequency == highFrequency) {
+                    highFrequencyList.push({'phrase': pkey, 'frequency': phrases[pkey].frequency, 'polarity': phrases[pkey].polarity});
+                  }
+                }
+                
+                var polarity;
+                var phrase;
+                var main_polarity = 0;
+
+                if(highFrequencyList.length == 1) {
+                  polarity = highFrequencyList[0].polarity;
+                  phrase = highFrequencyList[0].phrase
+                  main_polarity = polarity;
+                } else {
+                  var difference = 100
+                  main_polarity = feature_polarity[key].polarity
+                  phrase = highFrequencyList[0].phrase
+
+                  for (var i = 0; i < highFrequencyList.length; i++) {
+                    var current_diff = Math.abs(highFrequencyList[i].polarity - main_polarity)
+                    if(current_diff <= difference) {
+                      difference = current_diff
+                      phrase = highFrequencyList[i].phrase
+                      polarity = highFrequencyList[i].polarity
+                    }
+                  }
+                }
+
+                if (main_polarity > 0){
+                  // $('#positive').append(phrase + " ( " + parseFloat(polarity).toFixed(2) + ')<br>');
+                  $('#positive').append("<strong>" + current_feature + "</strong>: ");
+                  $('#positive').append(process_string(1, highFrequencyList));
+                }
+                else if (main_polarity == 0){
+                  // $('#neutral').append(phrase + '<br>');
+                  $('#neutral').append("<strong>" + current_feature + "</strong>: ");
+                  $('#neutral').append(process_string(0, highFrequencyList));
+                }
+                else {
+                  // $('#negative').append(phrase + " ( " + parseFloat(polarity).toFixed(2) + ')<br>');
+                  $('#negative').append("<strong>" + current_feature + "</strong>: ");
+                  $('#negative').append(process_string(-1, highFrequencyList));
+                }
+              }
+                
+            }
+
+            // $('#answer').text(data);
+          }
+        });
+      
+        function process_string(type, highFrequencyList) {
+          var arr = [];
+          for (var i = 0; i < highFrequencyList.length; i++) {
+            var curr_str = "";
+            var pol = 0;
+            if (highFrequencyList[i].polarity > 0) {
+              pol = 1;
+              curr_str += "<a href='#' data-phrase='" + highFrequencyList[i].phrase + "' class='pos'>" + highFrequencyList[i].phrase + " (" + highFrequencyList[i].frequency + ')</a>';
+            } else if (highFrequencyList[i].polarity == 0) {
+              pol = 0;
+              curr_str += "<a href='#' data-phrase='" + highFrequencyList[i].phrase + "' class='neu'>" + highFrequencyList[i].phrase + " (" + highFrequencyList[i].frequency + ')</a>';
+            } else {
+              pol = -1;
+              curr_str += "<a href='#' data-phrase='" + highFrequencyList[i].phrase + "' class='neg'>" + highFrequencyList[i].phrase + " (" + highFrequencyList[i].frequency + ')</a>';
+            }
+            arr.push({"type": pol, "text": curr_str});
+          }
+
+          if (type < 0) {
+            arr.sort(function(a, b){
+                if(a.type < b.type) return -1;
+                if(a.type > b.type) return 1;
+                return 0;
+            });
+          } else {
+            arr.sort(function(a, b){
+                if(a.type > b.type) return -1;
+                if(a.type < b.type) return 1;
+                return 0;
+            });
+          }
+
+          var strArr = []
+          for (var i = 0; i < arr.length; i++) {
+            strArr.push(arr[i].text)
+          }
+          return strArr.join(", ") + "<br>";
+        }
+
+        function sanitize_phrase(str) {
+          return str.replace(/ /g,"-").toLowerCase();
+        }
+
+        $(document).on('click', '#answer a', function() {
+          var phrase = sanitize_phrase($(this).data('phrase'));
+          $('.review').hide();
+          $('.' + phrase).parents('.review').show();
+          $('#show-all').show();
+          return false;
+        });
+
+        $('#show-all').click(function() {
+          $('.review').show();
+          $(this).hide();
+        });
+  
+      });
+    </script>
+  </body>
+</html>
